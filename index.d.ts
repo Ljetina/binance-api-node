@@ -282,6 +282,8 @@ declare module 'binance-api-node' {
 
   export type UserDataStreamEvent = OutboundAccountInfo | ExecutionReport | BalanceUpdate | OutboundAccountPosition
 
+  type FuturesDepthOpts = { symbol: string, level?: number, interval?: 500 | 100 | 0 }
+
   export interface WebSocket {
     depth: (
       pair: string | string[],
@@ -290,7 +292,11 @@ declare module 'binance-api-node' {
     partialDepth: (
       options: { symbol: string; level: number } | { symbol: string; level: number }[],
       callback: (depth: PartialDepth) => void,
-    ) => ReconnectingWebSocketHandler
+    ) => ReconnectingWebSocketHandler,
+    futuresDepth: (
+      options: FuturesDepthOpts | FuturesDepthOpts[],
+      callback: (depth: PartialDepth | FuturesDepth) => void,
+    ) => ReconnectingWebSocketHandler,
     ticker: (
       pair: string | string[],
       callback: (ticker: Ticker) => void,
@@ -569,6 +575,16 @@ declare module 'binance-api-node' {
     askDepth: BidDepth[]
   }
 
+  export interface FuturesDepth {
+    eventType: string
+    eventTime: number
+    symbol: string
+    firstUpdateId: number
+    finalUpdateId: number
+    bids: BidDepth[]
+    asks: BidDepth[]
+  }
+
   export interface BidDepth {
     price: string
     quantity: string
@@ -577,13 +593,8 @@ declare module 'binance-api-node' {
   export interface PartialDepth {
     symbol: string
     level: number
-    bids: Bid[]
-    asks: Bid[]
-  }
-
-  export interface Bid {
-    price: string
-    quantity: string
+    bids: BidDepth[]
+    asks: BidDepth[]
   }
 
   export interface Ticker {

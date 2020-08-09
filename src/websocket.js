@@ -59,6 +59,56 @@ const partialDepth = (payload, cb) => {
     cache.forEach(w => w.close(1000, 'Close handle was called', { keepClosed: true, ...options }))
 }
 
+const messageToFullPayload = msg => {
+  const {
+    e: eventType,
+    E: eventTime,
+    s: symbol,
+    U: firstUpdateId,
+    u: finalUpdateId,
+    b: bids,
+    a: asks,
+  } = JSON.parse(msg.data)
+  return {
+    eventType,
+    eventTime,
+    symbol,
+    firstUpdateId,
+    finalUpdateId,
+    bids: bids.map(b => zip(['price', 'quantity'], b)),
+    asks: asks.map(a => zip(['price', 'quantity'], a)),
+  }
+}
+
+const messageToPartialPayload = (msg, symbol, level) => {
+  const { lastUpdateId, bids, asks } = JSON.parse(msg.data)
+  return {
+    symbol,
+    level,
+    lastUpdateId,
+    bids: bids.map(b => zip(['price', 'quantity'], b)),
+    asks: asks.map(a => zip(['price', 'quantity'], a)),
+  }
+}
+
+const futuresDepth = (opts, cb) => {
+  const cache = (Array.isArray(opts) ? opts : [opts]).map(
+    ({ symbol, level, interval }) => {
+      const w = openWebSocket(`${FUTURES}/${symbol.toLowerCase()}@depth${level || ''}${interval ? `@${interval}ms`: ''}`)
+      w.onmessage = msg => {
+        if (!level) {
+          return cb(messageToFullPayload(msg))
+        }
+        return cb(messageToPartialPayload(msg))
+      }
+      return w
+    },
+  )
+
+  return options =>
+    cache.forEach(w => w.close(1000, 'Close handle was called', { keepClosed: true, ...options }))
+}
+
 const candles = (payload, interval, cb) => {
   if (!interval || !cb) {
     throw new Error('Please pass a symbol, interval and callback.')
@@ -279,7 +329,7 @@ const userTransforms = {
   }),
   // https://github.com/binance-exchange/binance-official-api-docs/blob/master/user-data-stream.md#account-update
   outboundAccountPosition: m => ({
-    balances: m.B.map(({a, f, l}) => ({asset: a, free: f, locked: l})),
+    balances: m.B.map(({ a, f, l }) => ({ asset: a, free: f, locked: l })),
     eventTime: m.E,
     eventType: 'outboundAccountPosition',
     lastAccountUpdate: m.u,
@@ -404,6 +454,7 @@ const user = (opts, variator) => cb => {
 export default opts => ({
   depth,
   partialDepth,
+  futuresDepth,
   candles,
   trades,
   aggTrades,
